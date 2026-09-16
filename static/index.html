@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Jev, explained by poking it</title>
+  <style>
+    :root { color-scheme: light; --ink:#19231f; --muted:#627069; --paper:#fffdf7; --line:#dce3dc; --green:#167d5a; --mint:#dff7eb; --amber:#f4a62a; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:linear-gradient(135deg,#edf8f1,#fff7e6); color:var(--ink); font:16px/1.5 system-ui,sans-serif; min-height:100vh; }
+    main { width:min(920px,calc(100% - 32px)); margin:48px auto; }
+    h1 { font-size:clamp(2rem,6vw,4rem); line-height:1; margin:0 0 12px; letter-spacing:-.05em; }
+    .intro { color:var(--muted); max-width:680px; font-size:1.1rem; }
+    .panel { background:var(--paper); border:1px solid var(--line); border-radius:20px; padding:24px; margin-top:24px; box-shadow:0 18px 50px #386a4c18; }
+    label { font-weight:750; display:block; margin-bottom:8px; }
+    textarea { width:100%; min-height:120px; resize:vertical; border:1px solid #b7c4bc; border-radius:12px; padding:14px; font:inherit; background:white; }
+    textarea:focus { outline:3px solid #8ddbb8; border-color:var(--green); }
+    .examples { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 18px; }
+    .examples button { background:white; color:var(--ink); border:1px solid var(--line); padding:7px 10px; }
+    button { border:0; border-radius:999px; cursor:pointer; font:inherit; font-weight:700; }
+    #go { background:var(--green); color:white; padding:12px 22px; }
+    #go:disabled { opacity:.55; cursor:wait; }
+    #status { margin-left:10px; color:var(--muted); }
+    .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:18px; }
+    .card { background:white; border:1px solid var(--line); border-radius:16px; padding:17px; min-width:0; }
+    .eyebrow { color:var(--muted); font-size:.78rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+    .answer { font-size:1.55rem; font-weight:800; margin:5px 0 12px; overflow-wrap:anywhere; }
+    .bar { height:9px; background:#e8ede9; border-radius:99px; overflow:hidden; margin:5px 0 10px; }
+    .bar > i { display:block; height:100%; background:var(--green); border-radius:99px; }
+    .row { display:flex; justify-content:space-between; gap:10px; font-size:.85rem; color:var(--muted); }
+    details { margin-top:18px; }
+    summary { cursor:pointer; font-weight:700; }
+    pre { overflow:auto; background:#17201c; color:#dff7eb; padding:16px; border-radius:12px; font-size:.8rem; }
+    .lesson { border-left:4px solid var(--amber); padding-left:16px; color:var(--muted); margin-top:22px; }
+    .hidden { display:none; }
+    @media (max-width:700px) { main{margin:24px auto}.cards{grid-template-columns:1fr}.panel{padding:18px} }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Jev, explained by poking it.</h1>
+  <p class="intro">Jev doesn’t write an essay. You give it some <strong>state</strong> and narrow, typed <strong>questions</strong>. It returns decisions and probabilities your code can use.</p>
+
+  <section class="panel">
+    <label for="message">1. Give Jev a customer message (the state)</label>
+    <textarea id="message">My account was hacked and there are charges I don't recognize. Help!</textarea>
+    <div class="examples">
+      <button data-example="I was charged twice for my subscription.">Billing</button>
+      <button data-example="The app crashes whenever I export a PDF.">Technical</button>
+      <button data-example="How much would 200 seats cost?">Sales</button>
+      <button data-example="It doesn't work. Can somebody help?">Ambiguous</button>
+    </div>
+    <button id="go">2. Ask Jev</button><span id="status"></span>
+
+    <div id="results" class="hidden">
+      <div class="cards">
+        <article class="card"><div class="eyebrow">Choice · department</div><div class="answer" id="department"></div><div id="probabilities"></div></article>
+        <article class="card"><div class="eyebrow">Noul · is urgent?</div><div class="answer" id="urgent"></div><div class="bar"><i id="urgentBar"></i></div><div class="row"><span>No</span><span id="urgentNumber"></span><span>Yes</span></div></article>
+        <article class="card"><div class="eyebrow">Score · frustration</div><div class="answer" id="frustration"></div><div class="bar"><i id="frustrationBar"></i></div><div class="row"><span>Calm</span><span id="frustrationNumber"></span><span>Angry</span></div></article>
+      </div>
+      <p class="lesson"><strong>The important bit:</strong> your program decides what these numbers do. Jev makes the judgment; ordinary code keeps control.</p>
+      <details><summary>See the raw API input</summary><pre id="rawInput"></pre></details>
+      <details><summary>See the raw API response</summary><pre id="raw"></pre></details>
+    </div>
+  </section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  document.querySelectorAll('[data-example]').forEach((button) => {
+    button.addEventListener('click', () => {
+      $('message').value = button.dataset.example;
+    });
+  });
+
+  function showProbabilities(probabilities) {
+    const container = $('probabilities');
+    container.replaceChildren();
+
+    const sorted = Object.entries(probabilities).sort((a, b) => b[1] - a[1]);
+    for (const [name, probability] of sorted) {
+      const row = document.createElement('div');
+      row.className = 'row';
+
+      const label = document.createElement('span');
+      label.textContent = name;
+      const percentage = document.createElement('strong');
+      percentage.textContent = `${Math.round(probability * 100)}%`;
+      row.append(label, percentage);
+
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      const fill = document.createElement('i');
+      fill.style.width = `${probability * 100}%`;
+      bar.append(fill);
+
+      container.append(row, bar);
+    }
+  }
+
+  $('go').addEventListener('click', async () => {
+    $('go').disabled = true;
+    $('status').textContent = 'Thinking…';
+
+    try {
+      const response = await fetch('/api/evaluate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: $('message').value}),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Request failed');
+
+      const {input, output: data} = body;
+      const {department, is_urgent: urgent, frustration} = data.answers;
+      $('department').textContent = department.choice;
+      showProbabilities(department.probabilities);
+      $('urgent').textContent = urgent.noul >= .7 ? 'Yes, expedite' : urgent.noul >= .4 ? 'Uncertain' : 'Normal queue';
+      $('urgentBar').style.width = `${urgent.noul * 100}%`;
+      $('urgentNumber').textContent = `${Math.round(urgent.noul * 100)}% yes`;
+
+      const maxScore = Object.keys(frustration.legend).length - 1;
+      $('frustration').textContent = frustration.legend[String(Math.round(frustration.score))];
+      $('frustrationBar').style.width = `${frustration.score / maxScore * 100}%`;
+      $('frustrationNumber').textContent = `${frustration.score.toFixed(2)} / ${maxScore}`;
+      $('rawInput').textContent = JSON.stringify(input, null, 2);
+      $('raw').textContent = JSON.stringify(data, null, 2);
+      $('results').classList.remove('hidden');
+      $('status').textContent = `${data.usage.input_tokens + data.usage.output_tokens} tokens`;
+    } catch (error) {
+      $('status').textContent = error.message;
+    } finally {
+      $('go').disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "tiny-jev-playground",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A tiny dependency-free TypeSafe Jev playground",
+  "scripts": {
+    "start": "node app.js",
+    "check": "node --check app.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  }
+}
