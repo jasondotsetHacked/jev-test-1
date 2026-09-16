@@ -1,4 +1,4 @@
-# Tiny Jev playground
+# Jev Test 1
 
 This is a deliberately small, dependency-free Node.js example of
 [TypeSafe's Jev model](https://typesafe.ai/). It sends one customer message to
